@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -134,12 +135,17 @@ func Login() gin.HandlerFunc {
 		accessToken, refreshToken, err := helpers.GenerateAllToken(*foundUser.Email, *foundUser.First_name, *foundUser.Last_name, *foundUser.User_type, foundUser.User_id)
 		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate access_token and refresh_token"})
+			return
 		}
 
 		err = helpers.UpdateAllToken(ctxTimeout, accessToken, refreshToken, foundUser.User_id)
 		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update tokens"})
+			return
 		}
+
+		fmt.Println("NEW:", accessToken)
+		fmt.Println("OLD:", *foundUser.Access_token)
 
 		ctx.JSON(http.StatusOK, foundUser)
 

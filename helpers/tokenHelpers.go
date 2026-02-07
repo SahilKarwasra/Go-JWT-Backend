@@ -22,7 +22,7 @@ type SignedDetails struct {
 	jwt.RegisteredClaims
 }
 
-var userCollection *mongo.Collection = database.OpenCollection(database.Client, "user")
+var userCollection *mongo.Collection = database.OpenCollection(database.Client, "users")
 
 var SECRET_KEY string = os.Getenv("SECRET_KEY")
 
@@ -35,6 +35,7 @@ func GenerateAllToken(email string, firstName string, lastName string, userType 
 		Uid:        userId,
 		User_type:  userType,
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        primitive.NewObjectID().Hex(),
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(24 * time.Hour)),
 		},
@@ -42,6 +43,7 @@ func GenerateAllToken(email string, firstName string, lastName string, userType 
 
 	refreshClaims := &SignedDetails{
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        primitive.NewObjectID().Hex(),
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(7 * 24 * time.Hour)),
 		},
@@ -77,11 +79,17 @@ func UpdateAllToken(ctx context.Context, signedAccessToken string, signedRefresh
 		{Key: "$set", Value: updateObj},
 	}
 
-	_, err := userCollection.UpdateOne(
+	result, err := userCollection.UpdateOne(
 		ctxTimeout,
 		filter,
 		update,
 	)
+
+	if err != nil {
+		return err
+	}
+	fmt.Println("Matched:", result.MatchedCount)
+	fmt.Println("Modified:", result.ModifiedCount)
 
 	return err
 }
