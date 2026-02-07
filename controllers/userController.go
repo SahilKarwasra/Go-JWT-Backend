@@ -10,6 +10,7 @@ import (
 	"github.com/sahilkarwasra/GoLangJwtAuth/database"
 	"github.com/sahilkarwasra/GoLangJwtAuth/helpers"
 	"github.com/sahilkarwasra/GoLangJwtAuth/models"
+	"github.com/sahilkarwasra/GoLangJwtAuth/utils"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -41,39 +42,41 @@ func SignUp() gin.HandlerFunc {
 		var user models.User
 
 		if err := ctx.ShouldBindJSON(&user); err != nil {
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			utils.ErrorApiResponse(ctx, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		if err := validate.Struct(user); err != nil {
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			utils.ErrorApiResponse(ctx, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		emailCount, err := userCollection.CountDocuments(ctxTimeout, bson.M{"email": user.Email})
 		if err != nil {
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "error checking email"})
+			utils.ErrorApiResponse(ctx, http.StatusInternalServerError, "error checking email")
 			return
 		}
 		if emailCount > 0 {
-			ctx.JSON(http.StatusConflict, gin.H{"error": "this email already exists"})
+			utils.ErrorApiResponse(ctx, http.StatusConflict, "this email already exists")
 			return
 		}
 
 		hashedPassword, err := HashPassword(*user.Password)
 		if err != nil {
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+			utils.ErrorApiResponse(ctx, http.StatusInternalServerError, "failed to hash password")
 			return
 		}
 		user.Password = &hashedPassword
 
 		phoneCount, err := userCollection.CountDocuments(ctxTimeout, bson.M{"phone": user.Phone})
 		if err != nil {
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "error checking phone"})
+			// ctx.JSON(http.StatusInternalServerError, gin.H{"error": "error checking phone"})
+			utils.ErrorApiResponse(ctx, http.StatusInternalServerError, "error checking phone")
 			return
 		}
 		if phoneCount > 0 {
-			ctx.JSON(http.StatusConflict, gin.H{"error": "this phone number already exists"})
+			// ctx.JSON(http.StatusConflict, gin.H{"error": "this phone number already exists"})
+			utils.ErrorApiResponse(ctx, http.StatusConflict, "this phone number already exists")
 			return
 		}
 
@@ -84,7 +87,8 @@ func SignUp() gin.HandlerFunc {
 		user.User_id = user.ID.Hex()
 		accessToken, refreshToken, err := helpers.GenerateAllToken(*user.Email, *user.First_name, *user.Last_name, *user.User_type, user.User_id)
 		if err != nil {
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "token generation failed"})
+			// ctx.JSON(http.StatusInternalServerError, gin.H{"error": "token generation failed"})
+			utils.ErrorApiResponse(ctx, http.StatusInternalServerError, "token generation failed")
 			return
 		}
 
@@ -98,10 +102,13 @@ func SignUp() gin.HandlerFunc {
 			return
 		}
 
-		ctx.JSON(http.StatusCreated, gin.H{
-			"message": "User Registered Successfully",
+		// ctx.JSON(http.StatusCreated, gin.H{
+		// 	"message": "User Registered Successfully",
+		// 	"user_id": user.User_id,
+		// })
+		utils.SuccessApiResponse(ctx, http.StatusCreated, gin.H{
 			"user_id": user.User_id,
-		})
+		}, "user registered successfully")
 	}
 }
 
@@ -122,28 +129,37 @@ func Login() gin.HandlerFunc {
 		// finding the user in db by email
 		err := userCollection.FindOne(ctxTimeout, bson.M{"email": user.Email}).Decode(&foundUser)
 		if err != nil {
-			ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+			// ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+			utils.ErrorApiResponse(ctx, http.StatusUnauthorized, "invalid credentials")
 			return
 		}
 
 		if !VerifyPassword(*user.Password, *foundUser.Password) {
-			ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+			// ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+			utils.ErrorApiResponse(ctx, http.StatusUnauthorized, "invalid credentials")
 			return
 		}
 
 		accessToken, refreshToken, err := helpers.GenerateAllToken(*foundUser.Email, *foundUser.First_name, *foundUser.Last_name, *foundUser.User_type, foundUser.User_id)
 		if err != nil {
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate access_token and refresh_token"})
+			// ctx.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate access_token and refresh_token"})
+			utils.ErrorApiResponse(ctx, http.StatusInternalServerError, "could not generate access_token or refresh_token")
 			return
 		}
 
 		err = helpers.UpdateAllToken(ctxTimeout, accessToken, refreshToken, foundUser.User_id)
 		if err != nil {
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update tokens"})
+			// ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update tokens"})
+			utils.ErrorApiResponse(ctx, http.StatusInternalServerError, "failed to update tokens")
 			return
 		}
 
-		ctx.JSON(http.StatusOK, foundUser)
+		// ctx.JSON(http.StatusOK, foundUser)
+		utils.SuccessApiResponse(ctx, http.StatusOK, gin.H{
+			"access_token":  accessToken,
+			"refresh_token": refreshToken,
+			"user_id":       foundUser.User_id,
+		}, "logged in successfully")
 
 	}
 }
@@ -153,7 +169,8 @@ func GetUser() gin.HandlerFunc {
 		userId := ctx.Param("user_id")
 
 		if err := helpers.MatchUserTypeToUid(ctx, userId); err != nil {
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			// ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			utils.ErrorApiResponse(ctx, http.StatusBadRequest, "invalid user type")
 			return
 		}
 
@@ -164,12 +181,15 @@ func GetUser() gin.HandlerFunc {
 		err := userCollection.FindOne(ctxTimeout, bson.M{"user_id": userId}).Decode(&user)
 		if err != nil {
 			if err == mongo.ErrNoDocuments {
-				ctx.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+				// ctx.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+				utils.ErrorApiResponse(ctx, http.StatusNotFound, "user not found")
 			}
-			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			// ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			utils.ErrorApiResponse(ctx, http.StatusInternalServerError, err.Error())
 			return
 		}
-		ctx.JSON(http.StatusOK, user)
+		// ctx.JSON(http.StatusOK, user)
+		utils.SuccessApiResponse(ctx, http.StatusOK, user, "user fetched successfully")
 
 	}
 }
