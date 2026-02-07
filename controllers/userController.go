@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -143,9 +142,6 @@ func Login() gin.HandlerFunc {
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update tokens"})
 			return
 		}
-
-		fmt.Println("NEW:", accessToken)
-		fmt.Println("OLD:", *foundUser.Access_token)
 
 		ctx.JSON(http.StatusOK, foundUser)
 

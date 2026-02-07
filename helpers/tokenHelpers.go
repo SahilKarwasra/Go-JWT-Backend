@@ -79,7 +79,7 @@ func UpdateAllToken(ctx context.Context, signedAccessToken string, signedRefresh
 		{Key: "$set", Value: updateObj},
 	}
 
-	result, err := userCollection.UpdateOne(
+	_, err := userCollection.UpdateOne(
 		ctxTimeout,
 		filter,
 		update,
@@ -88,8 +88,6 @@ func UpdateAllToken(ctx context.Context, signedAccessToken string, signedRefresh
 	if err != nil {
 		return err
 	}
-	fmt.Println("Matched:", result.MatchedCount)
-	fmt.Println("Modified:", result.ModifiedCount)
 
 	return err
 }
