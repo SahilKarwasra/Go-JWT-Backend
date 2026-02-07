@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
@@ -83,4 +84,31 @@ func UpdateAllToken(ctx context.Context, signedAccessToken string, signedRefresh
 	)
 
 	return err
+}
+
+func VaildateAccessToken(signedAccessToken string) (*SignedDetails, error) {
+	token, err := jwt.ParseWithClaims(
+		signedAccessToken,
+		&SignedDetails{},
+		func(t *jwt.Token) (any, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+			}
+			return []byte(SECRET_KEY), nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	if !token.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+
+	claims, ok := token.Claims.(*SignedDetails)
+	if !ok {
+		return nil, fmt.Errorf("invalid claim type")
+	}
+
+	return claims, nil
+
 }

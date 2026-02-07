@@ -141,25 +141,9 @@ func Login() gin.HandlerFunc {
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update tokens"})
 		}
 
-		// err = userCollection.FindOne(ctxTimeout, bson.M{"user_id": foundUser.User_id}).Decode(&foundUser)
-
-		// if err != nil {
-		// 	if err == mongo.ErrNoDocuments {
-		// 		ctx.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
-		// 		return
-		// 	} else {
-		// 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		// 		return
-		// 	}
-		// }
-
 		ctx.JSON(http.StatusOK, foundUser)
 
 	}
-}
-
-func GetUsers() {
-
 }
 
 func GetUser() gin.HandlerFunc {
