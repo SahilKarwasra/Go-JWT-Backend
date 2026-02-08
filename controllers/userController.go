@@ -122,44 +122,106 @@ func Login() gin.HandlerFunc {
 
 		// parse request body and store body in user
 		if err := ctx.BindJSON(&user); err != nil {
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+			utils.ErrorApiResponse(ctx, http.StatusBadRequest, "invalid request body")
 			return
 		}
 
 		// finding the user in db by email
 		err := userCollection.FindOne(ctxTimeout, bson.M{"email": user.Email}).Decode(&foundUser)
 		if err != nil {
-			// ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 			utils.ErrorApiResponse(ctx, http.StatusUnauthorized, "invalid credentials")
 			return
 		}
 
 		if !VerifyPassword(*user.Password, *foundUser.Password) {
-			// ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 			utils.ErrorApiResponse(ctx, http.StatusUnauthorized, "invalid credentials")
 			return
 		}
 
 		accessToken, refreshToken, err := helpers.GenerateAllToken(*foundUser.Email, *foundUser.First_name, *foundUser.Last_name, *foundUser.User_type, foundUser.User_id)
 		if err != nil {
-			// ctx.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate access_token and refresh_token"})
 			utils.ErrorApiResponse(ctx, http.StatusInternalServerError, "could not generate access_token or refresh_token")
 			return
 		}
 
 		err = helpers.UpdateAllToken(ctxTimeout, accessToken, refreshToken, foundUser.User_id)
 		if err != nil {
-			// ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update tokens"})
 			utils.ErrorApiResponse(ctx, http.StatusInternalServerError, "failed to update tokens")
 			return
 		}
 
-		// ctx.JSON(http.StatusOK, foundUser)
 		utils.SuccessApiResponse(ctx, http.StatusOK, gin.H{
 			"access_token":  accessToken,
 			"refresh_token": refreshToken,
 			"user_id":       foundUser.User_id,
 		}, "logged in successfully")
+
+	}
+}
+
+func RefreshToken() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		var ctxTimeout, cancel = context.WithTimeout(ctx.Request.Context(), 60*time.Second)
+		defer cancel()
+
+		var req models.RefreshRequest
+
+		// parse the user refresh token
+		if err := ctx.ShouldBindJSON(&req); err != nil {
+			utils.ErrorApiResponse(ctx, http.StatusBadRequest, "refresh token required")
+			return
+		}
+
+		// validdate token signature and expire
+		claims, err := helpers.VaildateAccessToken(req.RefreshToken)
+		if err != nil {
+			utils.ErrorApiResponse(ctx, http.StatusUnauthorized, "invalid refresh token")
+			return
+		}
+
+		// fetch user from db
+		var user models.User
+		err = userCollection.FindOne(ctxTimeout, bson.M{"user_id": claims.Uid}).Decode(&user)
+		if err != nil {
+			utils.ErrorApiResponse(ctx, http.StatusUnauthorized, "user not found")
+			return
+		}
+
+		// compare refresh token with db
+		if user.Refresh_token == nil || *user.Refresh_token != req.RefreshToken {
+			utils.ErrorApiResponse(ctx, http.StatusUnauthorized, "refresh token expired")
+			return
+		}
+
+		// generate new token
+		accessToken, refreshToken, err := helpers.GenerateAllToken(
+			*user.Email,
+			*user.First_name,
+			*user.Last_name,
+			*user.User_type,
+			user.User_id,
+		)
+		if err != nil {
+			utils.ErrorApiResponse(ctx, http.StatusInternalServerError, "failed to generate new tokens")
+			return
+		}
+
+		// update token in db
+		err = helpers.UpdateAllToken(ctx, accessToken, refreshToken, user.User_id)
+		if err != nil {
+			utils.ErrorApiResponse(ctx, http.StatusInternalServerError, "failed to update token")
+		}
+
+		// success response
+		utils.SuccessApiResponse(
+			ctx,
+			http.StatusOK,
+			gin.H{
+				"access_token":  accessToken,
+				"refresh_token": refreshToken,
+			},
+			"token refreshed successfully",
+		)
 
 	}
 }

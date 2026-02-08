@@ -42,6 +42,7 @@ func GenerateAllToken(email string, firstName string, lastName string, userType 
 	}
 
 	refreshClaims := &SignedDetails{
+		Uid: userId,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        primitive.NewObjectID().Hex(),
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -92,9 +93,9 @@ func UpdateAllToken(ctx context.Context, signedAccessToken string, signedRefresh
 	return err
 }
 
-func VaildateAccessToken(signedAccessToken string) (*SignedDetails, error) {
+func VaildateAccessToken(signedToken string) (*SignedDetails, error) {
 	token, err := jwt.ParseWithClaims(
-		signedAccessToken,
+		signedToken,
 		&SignedDetails{},
 		func(t *jwt.Token) (any, error) {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
